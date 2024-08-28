@@ -1,4 +1,4 @@
-#include <stdio.h>
+1#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <json-c/json.h>
@@ -23,41 +23,34 @@ struct json_object* json_get_json_object_by_field(struct json_object* obj, const
     return NULL;
 }
 
-void parse_get_query(const char* query, char* module, char* action) {
-    // Dummy implementation for parsing GET query
-    // Replace with actual parsing code
-    strcpy(module, "default_module");
-    strcpy(action, "default_action");
-}
-
-void execute_command(const char* action, char* output, size_t size) {
+void execute_command(const char* command, char* output, size_t maxsize) {
     // Dummy implementation for executing UCI command
     // Replace with actual execution code
-	FILE *fp;
-	char buf[MAX_BUFFER];
-	size_t csize = 0;
-	if((fp = popen(action, "r")) == NULL)
-	{
-		perror("popen failed");
-		output[0] = '\0';
-		return;
-	}
+        FILE *fp;
+        char buffer[MAX_BUFFER];
+        size_t currentsize = 0;
+    if((fp = popen(command, "r")) == NULL)
+    {
+        perror("popen failed");
+        output[0] = '\0';
+        return;
+    }
 
-	while(fgets(buf, sizeof(buf)-1, fp) != NULL)
-	{
-		size_t len = strlen(buf);
-		if(csize+len < size-1)
-		{
-			strcpy(output + csize, buf);
-			csize+=len;
-		}
-	}
-	output[size-1] = '\0';
-	
-	if(pclose(fp) == -1)
-	{
-		perror("pclose failed");
-	}
+    while(fgets(buffer, sizeof(buffer) - 1, fp) != NULL)
+    {
+        size_t len = strlen(buffer);
+        if(currentsize + len < maxsize - 1)
+        {
+            strcpy(output + currentsize, buffer);
+            currentsize += len;
+        }
+    }
+    output[maxsize - 1] = '\0';
+
+    if(pclose(fp) == -1)
+    {
+        perror("pclose failed");
+    }
 }
 
 // Function to handle POST request
@@ -80,16 +73,14 @@ void handle_post_request() {
     // Read POST data
     fread(query, 1, content_length, stdin);
     query[content_length] = '\0'; // Null-terminate
-
     struct json_object* myjson = json_tokener_parse(query);
-    struct json_object* response = NULL;
     if (myjson == NULL) {
         printf("{\"error\":1,\"message\":\"Invalid JSON\"}\n");
         return;
     }
 
     const char* action = json_get_string_value_by_field(myjson, "ACT");
-
+    struct json_object* response = NULL;
     if (action != NULL && strcmp(action, "Login") == 0) {
         struct json_object* param = json_get_json_object_by_field(myjson, "param");
         if (param != NULL) {
@@ -103,30 +94,50 @@ void handle_post_request() {
         } else {
             printf("{\"error\":1,\"message\":\"Missing param field\"}\n");
         }
-    } else if (action != NULL && strcmp(action, "GetDHCP") == 0) {
+    } else if (action != NULL && strcmp(action, "GetLAN") == 0) {
+        char ifname[MAX_BUFFER] = {0};
+        char force_link[MAX_BUFFER] = {0};
+        char type[MAX_BUFFER] = {0};
+        char proto[MAX_BUFFER] = {0};
         char ipaddr[MAX_BUFFER] = {0};
-		char network[MAX_BUFFER] = {0};
-		char start[MAX_BUFFER] = {0};
-		char limit[MAX_BUFFER] = {0};
-		char leasetime[MAX_BUFFER] = {0};
-		execute_command("uci get network.lan.ipaddr", ipaddr, MAX_BUFFER);
-		execute_command("uci get network.lan.network", network, MAX_BUFFER);
-		execute_command("uci get dhcp.lan.start", start, MAX_BUFFER);
-		execute_command("uci get dhcp.lan.limit", limit, MAX_BUFFER);
-		execute_command("uci get dhcp.lan.leasetime", leasetime, MAX_BUFFER);
-		response = json_object_new_object();
-		json_object_object_add(response, "ipaddr", json_object_new_string(ipaddr));
-		json_object_object_add(response, "network", json_object_new_string(network));
-		json_object_object_add(response, "start", json_object_new_string(start));
-		json_object_object_add(response, "limit", json_object_new_string(limit));
-		json_object_object_add(response, "leasetime", json_object_new_string(leasetime));
-		printf("%s", json_object_to_json_string(response));
-    } else {
+        char netmask[MAX_BUFFER] = {0};
+        char ip6assign[MAX_BUFFER] = {0};
+        char multicast_querier[MAX_BUFFER] = {0};
+        char igmp_snooping[MAX_BUFFER] = {0};
+        char ieee1905managed[MAX_BUFFER] = {0};
+        char mtu[MAX_BUFFER] = {0};
+       	execute_command("uci get network.lan.ifname", ifname, MAX_BUFFER);
+        execute_command("uci get network.lan.force_link", force_link, MAX_BUFFER);
+        execute_command("uci get network.lan.type", type, MAX_BUFFER);
+       	execute_command("uci get network.lan.proto", proto, MAX_BUFFER);
+        execute_command("uci get network.lan.ipaddr", ipaddr, MAX_BUFFER);
+        execute_command("uci get network.lan.netmask", netmask, MAX_BUFFER);
+        execute_command("uci get network.lan.ip6assign", ip6assign, MAX_BUFFER);
+        execute_command("uci get network.lan.multicast_querier", multicast_querier, MAX_BUFFER);
+        execute_command("uci get network.lan.igmp_sooping", igmp_snooping, MAX_BUFFER);
+        execute_command("uci get network.lan.ieee1905managed", ieee1905managed, MAX_BUFFER);
+        execute_command("uci get network.lan.mtu", mtu, MAX_BUFFER);
+        response = json_object_new_object();
+        json_object_object_add(response, "ifname", json_object_new_string(ifname));
+        json_object_object_add(response, "force_link", json_object_new_string(force_link));
+        json_object_object_add(response, "type", json_object_new_string(type));
+        json_object_object_add(response, "proto", json_object_new_string(proto));
+        json_object_object_add(response, "ipaddr", json_object_new_string(ipaddr));
+        json_object_object_add(response, "netmask", json_object_new_string(netmask));
+        json_object_object_add(response, "ip6assign", json_object_new_string(ip6assign));
+        json_object_object_add(response, "multicast_querier", json_object_new_string(multicast_querier));
+        json_object_object_add(response, "igmp_snooping", json_object_new_string(igmp_snooping));
+        json_object_object_add(response, "ieee1905managed", json_object_new_string(ieee1905managed));
+        json_object_object_add(response, "mtu", json_object_new_string(mtu));
+        printf("%s", (char*)json_object_to_json_string(response));
+    }else if(action != NULL && strcmp(action, "GetWIFI") == 0) {
+
+	}else {
         printf("{\"error\":1,\"message\":\"Unknown action\"}\n");
     }
 
     json_object_put(myjson); // Free the JSON object
-	json_object_put(response);
+        json_object_put(response);
 }
 
 int main() {
@@ -139,7 +150,7 @@ int main() {
     if (method != NULL && strcmp(method, "POST") == 0) {
         handle_post_request();
     } else if (method != NULL && strcmp(method, "GET") == 0) {
-        //handle_get_request(); 
+        //handle_get_request();
     } else {
         // Method not supported
         printf("{\"error\":1,\"message\":\"Method not supported\"}\n");
@@ -147,3 +158,4 @@ int main() {
 
     return 0;
 }
+
