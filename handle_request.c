@@ -2,8 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <json-c/json.h>
-#define MAX_QUERY_LENGTH 1024
 
+#define MAX_QUERY_LENGTH 1024
+#define MAX_BUFFER 512
 // Dummy implementations for missing functions
 // Replace these with actual implementations
 const char* json_get_string_value_by_field(struct json_object* obj, const char* field) {
@@ -29,9 +30,34 @@ void parse_get_query(const char* query, char* module, char* action) {
     strcpy(action, "default_action");
 }
 
-void execute_uci_command(const char* action, struct json_object* response_json) {
+void execute_command(const char* action, char* output, size_t size) {
     // Dummy implementation for executing UCI command
     // Replace with actual execution code
+	FILE *fp;
+	char buf[MAX_BUFFER];
+	size_t csize = 0;
+	if((fp = popen(action, "r")) == NULL)
+	{
+		perror("popen failed");
+		output[0] = '\0';
+		return;
+	}
+
+	while(fgets(buf, sizeof(buf)-1, fp) != NULL)
+	{
+		size_t len = strlen(buf);
+		if(csize+len < size-1)
+		{
+			strcpy(output + csize, buf);
+			csize+=len;
+		}
+	}
+	output[size-1] = '\0';
+	
+	if(pclose(fp) == -1)
+	{
+		perror("pclose failed");
+	}
 }
 
 // Function to handle POST request
@@ -56,6 +82,7 @@ void handle_post_request() {
     query[content_length] = '\0'; // Null-terminate
 
     struct json_object* myjson = json_tokener_parse(query);
+    struct json_object* response = NULL;
     if (myjson == NULL) {
         printf("{\"error\":1,\"message\":\"Invalid JSON\"}\n");
         return;
@@ -76,45 +103,30 @@ void handle_post_request() {
         } else {
             printf("{\"error\":1,\"message\":\"Missing param field\"}\n");
         }
-    } else if (action != NULL && strcmp(action, "dhcp") == 0) {
-        // Handle DHCP action here
+    } else if (action != NULL && strcmp(action, "GetDHCP") == 0) {
+        char ipaddr[MAX_BUFFER] = {0};
+		char network[MAX_BUFFER] = {0};
+		char start[MAX_BUFFER] = {0};
+		char limit[MAX_BUFFER] = {0};
+		char leasetime[MAX_BUFFER] = {0};
+		execute_command("uci get network.lan.ipaddr", ipaddr, MAX_BUFFER);
+		execute_command("uci get network.lan.network", network, MAX_BUFFER);
+		execute_command("uci get dhcp.lan.start", start, MAX_BUFFER);
+		execute_command("uci get dhcp.lan.limit", limit, MAX_BUFFER);
+		execute_command("uci get dhcp.lan.leasetime", leasetime, MAX_BUFFER);
+		response = json_object_new_object();
+		json_object_object_add(response, "ipaddr", json_object_new_string(ipaddr));
+		json_object_object_add(response, "network", json_object_new_string(network));
+		json_object_object_add(response, "start", json_object_new_string(start));
+		json_object_object_add(response, "limit", json_object_new_string(limit));
+		json_object_object_add(response, "leasetime", json_object_new_string(leasetime));
+		printf("%s", json_object_to_json_string(response));
     } else {
         printf("{\"error\":1,\"message\":\"Unknown action\"}\n");
     }
 
     json_object_put(myjson); // Free the JSON object
-}
-
-// Function to handle GET request
-void handle_get_request() {
-    char *query = getenv("QUERY_STRING");
-
-    if (query == NULL) {
-        printf("{\"error\":1,\"message\":\"Missing QUERY_STRING\"}\n");
-        return;
-    }
-
-    char module[50];
-    char action[50];
-
-    // Parse the GET query string
-    parse_get_query(query, module, action);
-
-    // Create a JSON object for the response
-    struct json_object *response_json = json_object_new_object();
-
-    // Execute UCI command and get the output
-    execute_uci_command(action, response_json);
-
-    // Add the module and error fields
-    json_object_object_add(response_json, "module", json_object_new_string(module));
-    json_object_object_add(response_json, "error", json_object_new_int(0));
-
-    // Print the JSON response
-    printf("%s\n", json_object_to_json_string(response_json));
-
-    // Free the JSON object
-    json_object_put(response_json);
+	json_object_put(response);
 }
 
 int main() {
@@ -127,7 +139,7 @@ int main() {
     if (method != NULL && strcmp(method, "POST") == 0) {
         handle_post_request();
     } else if (method != NULL && strcmp(method, "GET") == 0) {
-        handle_get_request(); 
+        //handle_get_request(); 
     } else {
         // Method not supported
         printf("{\"error\":1,\"message\":\"Method not supported\"}\n");
