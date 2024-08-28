@@ -1,4 +1,4 @@
-1#include <stdio.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <json-c/json.h>
@@ -114,7 +114,7 @@ void handle_post_request() {
         execute_command("uci get network.lan.netmask", netmask, MAX_BUFFER);
         execute_command("uci get network.lan.ip6assign", ip6assign, MAX_BUFFER);
         execute_command("uci get network.lan.multicast_querier", multicast_querier, MAX_BUFFER);
-        execute_command("uci get network.lan.igmp_sooping", igmp_snooping, MAX_BUFFER);
+        execute_command("uci get network.lan.igmp_snooping", igmp_snooping, MAX_BUFFER);
         execute_command("uci get network.lan.ieee1905managed", ieee1905managed, MAX_BUFFER);
         execute_command("uci get network.lan.mtu", mtu, MAX_BUFFER);
         response = json_object_new_object();
@@ -130,16 +130,27 @@ void handle_post_request() {
         json_object_object_add(response, "ieee1905managed", json_object_new_string(ieee1905managed));
         json_object_object_add(response, "mtu", json_object_new_string(mtu));
         printf("%s", (char*)json_object_to_json_string(response));
-    }else if(action != NULL && strcmp(action, "GetWIFI") == 0) {
-
+    }else if(action != NULL && strcmp(action, "GetWAN") == 0) {
+		char ifname[MAX_BUFFER] = {0};
+        char proto[MAX_BUFFER] = {0};
+        char type[MAX_BUFFER] = {0};
+		response = json_object_new_object();
+		execute_command("uci get network.wan.ifname", ifname, MAX_BUFFER);
+        execute_command("uci get network.wan.proto", proto, MAX_BUFFER);
+        execute_command("uci get network.wan.type", type, MAX_BUFFER);
+		json_object_object_add(response, "ifname", json_object_new_string(ifname));
+        json_object_object_add(response, "proto", json_object_new_string(proto));
+        json_object_object_add(response, "type", json_object_new_string(type));
+		printf("%s", (char*)json_object_to_json_string(response));
+	}else if(action != NULL && strcmp(action, "GetVersion") == 0) {
+		
 	}else {
         printf("{\"error\":1,\"message\":\"Unknown action\"}\n");
     }
 
     json_object_put(myjson); // Free the JSON object
-        json_object_put(response);
+	json_object_put(response);
 }
-
 int main() {
     // Check request method
     const char *method = getenv("REQUEST_METHOD");
