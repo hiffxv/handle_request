@@ -53,6 +53,36 @@ void execute_command(const char* command, char* output, size_t maxsize) {
     }
 }
 
+// {
+//     while (fgets(line, sizeof(line), file) != NULL)
+//     {
+//         char* delimiter_pos = strchr(line, '=');
+//         if(delimiter_pos != NULL)
+//         {
+//             *delimit_pos = '\0';
+//             char* current_key = line;
+//             char* current_value = delimiter_pos + 1;
+//             char* newline_pos = strchr(current_value, '\n');
+//             if(newline_pos != NULL)
+//             {
+//                 *newline_pos = '\0';
+//             }
+
+//             if(strcmp(current_key, key) == 0)
+//             {
+//                 if(strlen(current_value) < value_size)
+//                 {
+//                     strncpy(value, current_value, value_size - 1);
+//                     value[value_size - 1] = '\0';
+//                     found = 1;
+//                 } else {
+
+//                 }
+//             }
+//         }
+//     }
+// }
+
 // Function to handle POST request
 void handle_post_request() {
     char query[MAX_QUERY_LENGTH];
@@ -94,7 +124,25 @@ void handle_post_request() {
         } else {
             printf("{\"error\":1,\"message\":\"Missing param field\"}\n");
         }
-    } else if (action != NULL && strcmp(action, "GetLAN") == 0) {
+    } else if (action != NULL && strcmp(action, "GetDHCP") == 0) {
+        char ipaddr[MAX_BUFFER] = {0};
+        char netmask[MAX_BUFFER] = {0};
+        char start[MAX_BUFFER] = {0};
+        char limit[MAX_BUFFER] = {0};
+        char leasetime[MAX_BUFFER] = {0};
+       	execute_command("uci get network.lan.ipaddr", ipaddr, MAX_BUFFER);
+        execute_command("uci get network.lan.netmask", netmask, MAX_BUFFER);
+        execute_command("uci get dhcp.lan.start", start, MAX_BUFFER);
+       	execute_command("uci get dhcp.lan.limit", limit, MAX_BUFFER);
+        execute_command("uci get dhcp.lan.leasetime", leasetime, MAX_BUFFER);
+        response = json_object_new_object();
+        json_object_object_add(response, "ipaddr", json_object_new_string(ipaddr));
+        json_object_object_add(response, "netmask", json_object_new_string(netmask));
+        json_object_object_add(response, "start", json_object_new_string(start));
+        json_object_object_add(response, "limit", json_object_new_string(limit));
+        json_object_object_add(response, "leasetime", json_object_new_string(leasetime));
+        printf("%s", (char*)json_object_to_json_string(response));
+    }else if (action != NULL && strcmp(action, "GetLAN") == 0) {
         char ifname[MAX_BUFFER] = {0};
         char force_link[MAX_BUFFER] = {0};
         char type[MAX_BUFFER] = {0};
@@ -142,15 +190,128 @@ void handle_post_request() {
         json_object_object_add(response, "proto", json_object_new_string(proto));
         json_object_object_add(response, "type", json_object_new_string(type));
 		printf("%s", (char*)json_object_to_json_string(response));
-	}else if(action != NULL && strcmp(action, "GetVersion") == 0) {
-		
-	}else {
+	}else if(action != NULL && strcmp(action,"GetWIFI") == 0){
+	    char wifi_device[MAX_BUFFER] = {0};
+        char wifi_network[MAX_BUFFER] = {0};
+        char wifi_mode[MAX_BUFFER] = {0};
+        char wifi_ssid[MAX_BUFFER] = {0};
+        char wifi_encryption[MAX_BUFFER] = {0};
+	    char wifi_key[MAX_BUFFER] = {0};
+        execute_command("uci get wireless.wifi0if.device", wifi_device, MAX_BUFFER);
+        execute_command("uci get wireless.wifi0if.network",wifi_network , MAX_BUFFER);
+        execute_command("uci get wireless.wifi0if.mode", wifi_mode, MAX_BUFFER);
+        execute_command("uci get wireless.wifi0if.ssid", wifi_ssid, MAX_BUFFER);
+        execute_command("uci get wireless.wifi0if.encryption", wifi_encryption, MAX_BUFFER);
+	    execute_command("uci get wireless.wla.key", wifi_key, MAX_BUFFER);
+	    response = json_object_new_object();
+	    json_object_object_add(response, "wifi_device", json_object_new_string(wifi_device));
+        json_object_object_add(response, "wifi_network", json_object_new_string(wifi_network));
+        json_object_object_add(response, "wifi_mode", json_object_new_string(wifi_mode));
+        json_object_object_add(response, "wifi_ssid", json_object_new_string(wifi_ssid));
+        json_object_object_add(response, "wifi_encryption", json_object_new_string(wifi_encryption));
+	    json_object_object_add(response, "wifi_key", json_object_new_string(wifi_key));
+        json_object_object_add(response, "error", json_object_new_int(0)); 
+        printf("%s\n", json_object_to_json_string(response));
+    }else if(action != NULL && strcmp(action, "GetVersion") == 0) {
+		char version_info[MAX_BUFFER] = {0};
+        char line[MAX_BUFFER] = {0};
+        execute_command("cat /etc/system_version.info", version_info, MAX_BUFFER);
+        response = json_object_new_object();
+	    struct json_object *version_obj = json_object_new_object();
+    	char *line_start = version_info;
+        while (sscanf(line_start, "%[^\n]\n", line) == 1) {
+            char *key_end = strchr(line, '=');
+            if (key_end) {
+                *key_end = '\0';
+                char *value_start = key_end + 1;
+                if (*value_start == '"') {
+                    value_start++;
+                }
+                char *value_end = strchr(value_start, '"');
+                if (value_end) {
+                    *value_end = '\0';
+                }
+                json_object_object_add(version_obj, line, json_object_new_string(value_start));
+            }
+            line_start = strchr(line_start, '\n');
+            if (line_start) {
+                line_start++;
+            }
+    	}
+        json_object_object_add(response, "version_info", version_obj);
+	printf("\n");
+        json_object_object_add(response, "error", json_object_new_int(0));
+        printf("%s\n", json_object_to_json_string(response));
+        json_object_put(response);
+	}else if(action != NULL && strcmp(action, "SetDHCP") == 0){
+        int error = 0;
+        char cmd[512];
+        char* ipaddr = json_get_string_value_by_field(myjson, "ipaddr");
+        if(ipaddr == NULL)
+            error = 1;
+        char* netmask = json_get_string_value_by_field(myjson, "netmask");
+        if(netmask == NULL)
+            error = 1;
+        char* start = json_get_string_value_by_field(myjson, "start");
+        if(start == NULL)
+            error = 1;
+        char* limit = json_get_string_value_by_field(myjson, "limit");
+        if(limit == NULL)
+            error = 1;
+        char* leasetime = json_get_string_value_by_field(myjson, "leasetime");
+        if(leasetime == NULL)
+            error = 1;
+        sprintf(cmd, "uci set network.lan.ipaddr %s", ipaddr);
+        system(cmd);
+
+        memset(cmd, 0, 512);
+        sprintf(cmd, "uci set network.lan.netmask %s", netmask);
+        system(cmd);
+
+        memset(cmd, 0, 512);
+        sprintf(cmd, "uci set dhcp.lan.start %s", start);
+        system(cmd);
+
+        memset(cmd, 0, 512);
+        sprintf(cmd, "uci set dhcp.lan.limit %s", limit);
+        system(cmd);
+
+        memset(cmd, 0, 512);
+        sprintf(cmd, "uci set dhcp.lan.leasetime %s",leasetime);
+        system(cmd);
+
+        printf("{\"error\":%d}\n", error);
+        system("uci commit");
+        system("/etc/init.d/network restart");
+    }else if(action != NULL && strcmp(action, "SetWIFI") == 0){
+        int error = 0;
+        char cmd[512];
+        char* ssid = json_get_string_value_by_field(myjson, "ssid");
+        if(ssid == NULL)
+            error = 1;
+        char* key = json_get_string_value_by_field(myjson, "key");
+        if(key == NULL)
+            error = 1;
+        sprintf(cmd, "uci set wireless.wifi0if.ssid=%s", ssid);
+        system(cmd);
+
+        memset(cmd, 0, 512);
+        sprintf(cmd, "uci set network.wifi0if.key=%s", key);
+        system(cmd);
+
+        printf("{\"error\":%d}\n", error);
+        system("uci commit");
+        system("wifi &");
+    }else{
         printf("{\"error\":1,\"message\":\"Unknown action\"}\n");
     }
 
-    json_object_put(myjson); // Free the JSON object
-	json_object_put(response);
+    if(myjson != NULL)
+        json_object_put(myjson); // Free the JSON object
+    if(response != NULL) 
+	    json_object_put(response);
 }
+
 int main() {
     // Check request method
     const char *method = getenv("REQUEST_METHOD");
